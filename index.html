@@ -296,6 +296,7 @@ function renderD(){
   cols($("ch3"),ms);line($("ch4"),ms);
 }
 load();render();
+(function(){var m=document.querySelector("main");function fit(){var w=window.innerWidth,z=(w>820&&matchMedia("(pointer:coarse)").matches)?w/480:1;m.style.zoom=z;m.style.maxWidth=z>1?"none":""}fit();addEventListener("resize",fit)})();
 if("serviceWorker" in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("sw.js").catch(function(){})})}
 </script>
 </body>
