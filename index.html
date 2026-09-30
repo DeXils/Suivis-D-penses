@@ -117,6 +117,13 @@ td small{display:block;color:var(--mu);font-size:12px}
     <div class="seg" style="margin-top:14px"><button id="rskip" type="button">Ignorer</button><button id="racc" class="on" type="button">Accepter</button></div>
   </div>
 </div>
+<div class="card" id="sync">
+  <h2>Sauvegarde et synchronisation</h2>
+  <div class="seg"><button id="exp" type="button">Exporter</button><button id="impj" type="button">Importer</button></div>
+  <input id="jfile" type="file" accept=".json,application/json" hidden>
+  <label class="fold"><input type="checkbox" id="jrep"> Remplacer mes données au lieu de fusionner</label>
+  <div class="hint" id="jmsg">Exporte un fichier, envoie-le sur l'autre appareil, puis importe-le. La fusion ajoute les nouvelles lignes et met à jour celles qui ont changé, sans rien supprimer.</div>
+</div>
 </div>
 <div id="pgD" hidden>
   <div class="card"><div class="nav"><button id="dprev" type="button" aria-label="Mois précédent">‹</button><span id="dvm"></span><button id="dnext" type="button" aria-label="Mois suivant">›</button></div></div>
@@ -295,6 +302,35 @@ function renderD(){
   var ms=[];for(var i=5;i>=0;i--){var m=addM(dgYm,-i),ll=occ(m);ms.push({m:m,r:sum(ll,"R"),d:sum(ll,"D"),b:bal(m)})}
   cols($("ch3"),ms);line($("ch4"),ms);
 }
+$("exp").onclick=function(){
+  var blob=new Blob([JSON.stringify({v:1,exported:new Date().toISOString(),items:items},null,1)],{type:"application/json"});
+  var a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="depenses-"+today()+".json";document.body.appendChild(a);a.click();a.remove();
+  setTimeout(function(){URL.revokeObjectURL(a.href)},2000);
+  $("jmsg").textContent=items.length+" opération(s) exportée(s).";
+};
+$("impj").onclick=function(){$("jfile").click()};
+$("jfile").onchange=function(){
+  var f=this.files[0],inp=this;if(!f)return;
+  var fr=new FileReader();
+  fr.onload=function(){
+    try{
+      var j=JSON.parse(fr.result),arr=Array.isArray(j)?j:j.items;
+      if(!Array.isArray(arr))throw 0;
+      var ok=arr.filter(function(x){return x&&typeof x.n==="string"&&typeof x.p==="number"&&typeof x.id==="number"&&/^\d{4}-\d{2}-\d{2}$/.test(x.d)}).map(function(x){return{id:x.id,n:x.n,p:x.p,c:typeof x.c==="string"?x.c:"Autre",d:x.d,f:["U","M","A"].indexOf(x.f)>-1?x.f:"U",t:x.t==="R"?"R":"D"}});
+      if(!ok.length)throw 0;
+      if($("jrep").checked){
+        if(!confirm("Remplacer toutes tes données actuelles par celles du fichier ?")){inp.value="";return}
+        items=ok;
+      }else{
+        var by={};items.forEach(function(x){by[x.id]=x});ok.forEach(function(x){by[x.id]=x});
+        items=Object.keys(by).map(function(k){return by[k]});
+      }
+      save();render();$("jmsg").textContent=ok.length+" opération(s) importée(s).";
+    }catch(e){$("jmsg").textContent="Fichier non valide."}
+    inp.value="";
+  };
+  fr.readAsText(f);
+};
 load();render();
 (function(){var m=document.querySelector("main");function fit(){var w=window.innerWidth,z=(w>820&&matchMedia("(pointer:coarse)").matches)?w/480:1;m.style.zoom=z;m.style.maxWidth=z>1?"none":""}fit();addEventListener("resize",fit)})();
 if("serviceWorker" in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("sw.js").catch(function(){})})}
