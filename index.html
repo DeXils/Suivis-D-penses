@@ -52,6 +52,7 @@ td small{display:block;color:var(--mu);font-size:12px}
 .hb{margin:8px 0}.hb small{color:var(--mu);display:flex;justify-content:space-between;margin-bottom:2px}.hb .t{background:var(--bg);border-radius:8px;height:22px;overflow:hidden}.hb .t div{height:100%;border-radius:8px}
 .cols{display:flex;gap:6px}.cg{flex:1;text-align:center;font-size:11px;color:var(--mu)}.cb{display:flex;align-items:flex-end;justify-content:center;gap:3px;height:120px;margin-bottom:4px}.cb div{width:35%;max-width:16px;border-radius:3px 3px 0 0}
 .chart svg{width:100%;height:auto;display:block}
+.trow{display:flex;align-items:center;justify-content:center;gap:10px}.lock{border:1px solid var(--bd);background:var(--bg);color:var(--tx);border-radius:10px;padding:6px 10px;font-size:18px}.ver{text-align:center;color:var(--mu);font-size:12px;margin:8px 0 24px}
 </style>
 </head>
 <body>
@@ -62,7 +63,13 @@ td small{display:block;color:var(--mu);font-size:12px}
 
 <div class="card hero">
   <small>Mon argent total</small>
-  <b id="tot" class="big">0 €</b>
+  <div class="trow"><b id="tot" class="big">0 €</b><button id="lock" class="lock" type="button" aria-label="Modifier le solde de départ">🔒</button></div>
+  <div class="hint" id="since" style="text-align:center;margin:0 0 6px"></div>
+  <div id="bedit" hidden style="text-align:left">
+    <label for="bamt">Solde de départ (€)</label><input id="bamt" type="number" inputmode="decimal" step="0.01">
+    <label for="bdate">À partir du</label><input id="bdate" type="date">
+    <div class="hint">Seules les opérations à partir de cette date sont comptées (les autres ne sont pas supprimées).</div>
+  </div>
   <div class="stats">
     <div><small>Reporté</small><b id="rep">0 €</b></div>
     <div><small>Revenus du mois</small><b id="rv" class="in">0 €</b></div>
@@ -132,6 +139,7 @@ td small{display:block;color:var(--mu);font-size:12px}
   <div class="card"><h2>6 derniers mois</h2><div id="ch3"></div></div>
   <div class="card"><h2>Évolution de l'argent total</h2><div id="ch4" class="chart"></div></div>
 </div>
+<div class="ver">FrogIn.Dépenses : v2.2 - Made by FrogIn.Dev</div>
 </main>
 <script>
 var CATS=["Logement","Alimentation","Transport","Abonnements","Santé","Loisirs","Assurances","Impôts","Autre"];var INCATS=["Salaire","Prime","Remboursement","Vente","Autre"];
@@ -149,11 +157,11 @@ function occ(ym){
   return items.filter(function(x){
     var dy=+x.d.slice(0,4),dm=+x.d.slice(5,7);
     if(x.f==="U")return x.d.slice(0,7)===ym;return x.f==="M"?(dy*12+dm)<=(Y*12+M):(dm===M&&dy<=Y);
-  }).sort(function(a,b){return a.d.slice(8)-b.d.slice(8)});
+  }).filter(function(x){return !base.d||(ym+"-"+x.d.slice(8))>=base.d}).sort(function(a,b){return a.d.slice(8)-b.d.slice(8)});
 }
 function sum(l,t){return l.reduce(function(s,x){return (x.t||"D")===t?s+x.p:s},0)}
 function cell(tr,txt,cls,sub){var td=document.createElement("td");if(cls)td.className=cls;td.textContent=txt;if(sub){var s=document.createElement("small");s.textContent=sub;td.appendChild(s)}tr.appendChild(td);return td}
-function bal(ym){var mn=null;items.forEach(function(x){var k=x.d.slice(0,7);if(mn===null||k<mn)mn=k});var a=0;if(mn===null)return 0;for(var m=mn;m<=ym;m=addM(m,1)){var l=occ(m);a+=sum(l,"R")-sum(l,"D")}return a}
+function bal(ym){var a=base.d?base.a:0,mn=base.d?base.d.slice(0,7):null;if(mn===null){items.forEach(function(x){var k=x.d.slice(0,7);if(mn===null||k<mn)mn=k});if(mn===null)return 0}for(var m=mn;m<=ym;m=addM(m,1)){var l=occ(m);a+=sum(l,"R")-sum(l,"D")}return a}
 var EXP={};
 function table(el,ym,key){
   el.textContent="";
@@ -179,7 +187,7 @@ function render(){
   $("cur").textContent=label(curYm);
   var l=table($("tcur"),curYm,"c"),d=sum(l,"D"),rv=sum(l,"R");$("rv").textContent=fmt(rv);
   $("dm").textContent=fmt(d);
-  var rep=bal(addM(curYm,-1)),t=rep+rv-d;$("rep").textContent=fmt(rep);$("tot").textContent=fmt(t);$("tot").className="big"+(t<0?" neg":"");
+  var rep=bal(addM(curYm,-1)),t=rep+rv-d;$("rep").textContent=fmt(rep);$("tot").textContent=fmt(t);$("tot").className="big"+(t<0?" neg":"");$("since").textContent=base.d?"Solde de départ "+fmt(base.a)+" au "+base.d.slice(8)+"/"+base.d.slice(5,7)+"/"+base.d.slice(0,4):"";
   
   $("vm").textContent=label(viewYm);
   var vl=table($("tview"),viewYm,"v"),vr=sum(vl,"R"),vd=sum(vl,"D");
@@ -188,7 +196,11 @@ function render(){
   var b=document.createElement("b");b.textContent=fmt(vr-vd);tt.appendChild(b);$("tview").appendChild(tt);var fm=document.createElement("div");fm.className="tot";fm.appendChild(document.createTextNode("Argent à la fin du mois : "));var fb=document.createElement("b");fb.textContent=fmt(bal(viewYm));fm.appendChild(fb);$("tview").appendChild(fm);
   $("next").disabled=viewYm>=curYm;$("next").style.opacity=viewYm>=curYm?.4:1;
 }
-function fillCats(){var s=$("cat");s.textContent="";(type==="R"?INCATS:CATS).forEach(function(c){var o=document.createElement("option");o.textContent=c;s.appendChild(o)})}fillCats();
+var CC={D:[],R:[]};try{var cj=JSON.parse(localStorage.getItem("cats-v1")||"null");if(cj&&cj.D&&cj.R)CC=cj}catch(e){}
+function catList(t){var set=(t==="R"?INCATS:CATS).slice();CC[t].concat(items.filter(function(x){return (x.t||"D")===t}).map(function(x){return x.c})).forEach(function(c){if(c&&set.indexOf(c)<0)set.push(c)});return set}
+function fillCats(){var s=$("cat"),cur=s.value;s.textContent="";catList(type).forEach(function(c){s.appendChild(E("option","",c))});s.appendChild(E("option","","➕ Nouvelle catégorie…")).value="__new";if(cur&&cur!=="__new")s.value=cur}
+fillCats();
+$("cat").onchange=function(){if(this.value!=="__new")return;var n=(prompt("Nom de la nouvelle catégorie ("+(type==="R"?"rentrée d'argent":"dépense")+") :")||"").trim();if(!n){fillCats();return}if(catList(type).indexOf(n)<0){CC[type].push(n);try{localStorage.setItem("cats-v1",JSON.stringify(CC))}catch(e){}}fillCats();$("cat").value=n};
 $("date").value=today();
 function setF(f){freq=f;$("bu").className=f==="U"?"on":"";$("bm").className=f==="M"?"on":"";$("ba").className=f==="A"?"on":""}
 function setT(t){type=t;$("td").className=t==="D"?"on":"";$("tr").className=t==="R"?"on":"";$("add").textContent=editId!==null?"Enregistrer":(t==="R"?"Ajouter la rentrée d'argent":"Ajouter la dépense");fillCats()}
@@ -224,7 +236,7 @@ function startImport(t){
     Q.push({n:(r[cl]||"").trim(),p:cr>0?cr:db,c:cs>=0?cleanLbl(r[cs]):"",d:pdate(r[cd]),t:cr>0?"R":"D"});
   });
   if(!Q.length){$("imsg").textContent="Aucune ligne avec un montant trouvée.";return}
-  var set={};CATS.concat(INCATS).concat(items.map(function(x){return x.c})).concat(Q.map(function(x){return x.c})).forEach(function(c){if(c)set[c]=1});
+  var set={};CATS.concat(INCATS).concat(CC.D).concat(CC.R).concat(items.map(function(x){return x.c})).concat(Q.map(function(x){return x.c})).forEach(function(c){if(c)set[c]=1});
   var dl=$("cl");dl.textContent="";Object.keys(set).forEach(function(c){var o=document.createElement("option");o.value=c;dl.appendChild(o)});
   qi=0;nacc=0;$("imsg").textContent="";$("impstart").hidden=true;$("rev").hidden=false;showRow();
 }
@@ -303,7 +315,7 @@ function renderD(){
   cols($("ch3"),ms);line($("ch4"),ms);
 }
 $("exp").onclick=function(){
-  var blob=new Blob([JSON.stringify({v:1,exported:new Date().toISOString(),items:items},null,1)],{type:"application/json"});
+  var blob=new Blob([JSON.stringify({v:1,exported:new Date().toISOString(),items:items,base:base,cats:CC},null,1)],{type:"application/json"});
   var a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="depenses-"+today()+".json";document.body.appendChild(a);a.click();a.remove();
   setTimeout(function(){URL.revokeObjectURL(a.href)},2000);
   $("jmsg").textContent=items.length+" opération(s) exportée(s).";
@@ -325,13 +337,30 @@ $("jfile").onchange=function(){
         var by={};items.forEach(function(x){by[x.id]=x});ok.forEach(function(x){by[x.id]=x});
         items=Object.keys(by).map(function(k){return by[k]});
       }
-      save();render();$("jmsg").textContent=ok.length+" opération(s) importée(s).";
+      if(!Array.isArray(j)){if(j.cats&&j.cats.D&&j.cats.R){["D","R"].forEach(function(t){(j.cats[t]||[]).forEach(function(c){if(typeof c==="string"&&CC[t].indexOf(c)<0)CC[t].push(c)})});try{localStorage.setItem("cats-v1",JSON.stringify(CC))}catch(e){}}
+      if(j.base&&typeof j.base.a==="number"&&typeof j.base.d==="string"&&($("jrep").checked||!base.d)){base={a:j.base.a,d:j.base.d};saveBase()}}
+      save();fillCats();render();$("jmsg").textContent=ok.length+" opération(s) importée(s).";
     }catch(e){$("jmsg").textContent="Fichier non valide."}
     inp.value="";
   };
   fr.readAsText(f);
 };
-load();render();
+var base={a:0,d:""},unlocked=false;
+try{var bj=JSON.parse(localStorage.getItem("base-v1")||"null");if(bj&&typeof bj.a==="number"&&typeof bj.d==="string")base=bj}catch(e){}
+function saveBase(){try{localStorage.setItem("base-v1",JSON.stringify(base))}catch(e){}}
+$("lock").onclick=function(){
+  if(!unlocked){
+    if(!confirm("Déverrouiller pour modifier le solde de départ ?\nCela change tous les calculs. Es-tu sûr(e) ?"))return;
+    unlocked=true;$("bamt").value=base.d?base.a:"";$("bdate").value=base.d||today();$("bedit").hidden=false;this.textContent="🔓";
+  }else{
+    if(!confirm("Valider la modification du solde de départ ?"))return;
+    var d=$("bdate").value,a=parseFloat($("bamt").value);
+    if(d&&isNaN(a)){alert("Renseigne un solde de départ.");return}
+    base=d?{a:a,d:d}:{a:0,d:""};saveBase();
+    unlocked=false;$("bedit").hidden=true;this.textContent="🔒";render();
+  }
+};
+load();fillCats();render();
 (function(){var m=document.querySelector("main");function fit(){var w=window.innerWidth,z=(w>820&&matchMedia("(pointer:coarse)").matches)?w/480:1;m.style.zoom=z;m.style.maxWidth=z>1?"none":""}fit();addEventListener("resize",fit)})();
 if("serviceWorker" in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("sw.js").catch(function(){})})}
 </script>
